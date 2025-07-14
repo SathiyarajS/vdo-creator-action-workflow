@@ -1,0 +1,412 @@
+name: Video Generator - Daily Dual Content (Public Repo + Private Image)
+
+on:
+  # Daily dual content generation
+  schedule:
+    - cron: '0 9 * * *'    # Daily at 9 AM UTC - BOTH videos
+  
+  # Manual trigger with options
+  workflow_dispatch:
+    inputs:
+      video_type:
+        description: 'Type of video generation'
+        required: true
+        default: 'both'
+        type: choice
+        options:
+          - 'main'
+          - 'netflix'
+          - 'both'
+      enable_shorts:
+        description: 'Enable shorts upload for main video'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  DOCKER_IMAGE: video-creator:latest
+  CONTAINER_NAME: video-generator-${{ github.run_id }}
+  # Update this to your actual GHCR image path
+  GHCR_IMAGE: ghcr.io/sathiyarajs/video-creator:latest
+
+jobs:
+  generate-videos:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60  # Increased timeout for dual generation
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+      
+      - name: Determine Video Settings
+        id: settings
+        run: |
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            # Daily scheduled run - BOTH videos every day
+            echo "enable_main_creation=true" >> $GITHUB_OUTPUT
+            echo "enable_main_upload=true" >> $GITHUB_OUTPUT
+            echo "enable_netflix_creation=true" >> $GITHUB_OUTPUT
+            echo "enable_netflix_upload=true" >> $GITHUB_OUTPUT
+            echo "enable_shorts=false" >> $GITHUB_OUTPUT
+            echo "trigger_source=scheduled-daily-dual" >> $GITHUB_OUTPUT
+            echo "video_type=both" >> $GITHUB_OUTPUT
+            
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            # Manual run - use inputs
+            case "${{ inputs.video_type }}" in
+              "main")
+                echo "enable_main_creation=true" >> $GITHUB_OUTPUT
+                echo "enable_main_upload=true" >> $GITHUB_OUTPUT
+                echo "enable_netflix_creation=false" >> $GITHUB_OUTPUT
+                echo "enable_netflix_upload=false" >> $GITHUB_OUTPUT
+                echo "video_type=main" >> $GITHUB_OUTPUT
+                ;;
+              "netflix")
+                echo "enable_main_creation=false" >> $GITHUB_OUTPUT
+                echo "enable_main_upload=false" >> $GITHUB_OUTPUT
+                echo "enable_netflix_creation=true" >> $GITHUB_OUTPUT
+                echo "enable_netflix_upload=true" >> $GITHUB_OUTPUT
+                echo "video_type=netflix" >> $GITHUB_OUTPUT
+                ;;
+              "both")
+                echo "enable_main_creation=true" >> $GITHUB_OUTPUT
+                echo "enable_main_upload=true" >> $GITHUB_OUTPUT
+                echo "enable_netflix_creation=true" >> $GITHUB_OUTPUT
+                echo "enable_netflix_upload=true" >> $GITHUB_OUTPUT
+                echo "video_type=both" >> $GITHUB_OUTPUT
+                ;;
+            esac
+            echo "enable_shorts=${{ inputs.enable_shorts }}" >> $GITHUB_OUTPUT
+            echo "trigger_source=manual" >> $GITHUB_OUTPUT
+            
+          else
+            # Default - both videos
+            echo "enable_main_creation=true" >> $GITHUB_OUTPUT
+            echo "enable_main_upload=true" >> $GITHUB_OUTPUT
+            echo "enable_netflix_creation=true" >> $GITHUB_OUTPUT
+            echo "enable_netflix_upload=true" >> $GITHUB_OUTPUT
+            echo "enable_shorts=false" >> $GITHUB_OUTPUT
+            echo "trigger_source=api" >> $GITHUB_OUTPUT
+            echo "video_type=both" >> $GITHUB_OUTPUT
+          fi
+      
+      # CRITICAL: Login to GHCR with Personal Access Token
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: sathiyarajs  # Your GitHub username
+          password: ${{ secrets.GHCR_TOKEN }}  # Personal Access Token stored in secrets
+      
+      - name: Pull Private Docker Image from GHCR
+        run: |
+          echo "📦 Pulling private Docker image from GHCR..."
+          echo "🔐 Using authenticated access to: ${{ env.GHCR_IMAGE }}"
+          
+          # Pull the private image
+          docker pull ${{ env.GHCR_IMAGE }}
+          
+          # Tag it locally for easier reference
+          docker tag ${{ env.GHCR_IMAGE }} ${{ env.DOCKER_IMAGE }}
+          
+          echo "✅ Private image pulled and tagged successfully"
+          
+          # Verify image details
+          echo "📋 Image details:"
+          docker images ${{ env.DOCKER_IMAGE }}
+      
+      - name: Start Dual Video Generation Container
+        run: |
+          echo "🚀 Starting dual video generation container from private GHCR image..."
+          echo "📊 Settings for ${{ steps.settings.outputs.trigger_source }}:"
+          echo "  Video Type: ${{ steps.settings.outputs.video_type }}"
+          echo "  Main Creation: ${{ steps.settings.outputs.enable_main_creation }}"
+          echo "  Main Upload: ${{ steps.settings.outputs.enable_main_upload }}"
+          echo "  Netflix Creation: ${{ steps.settings.outputs.enable_netflix_creation }}"
+          echo "  Netflix Upload: ${{ steps.settings.outputs.enable_netflix_upload }}"
+          echo "  Shorts Upload: ${{ steps.settings.outputs.enable_shorts }}"
+          
+          # Remove any existing container
+          docker rm -f ${{ env.CONTAINER_NAME }} 2>/dev/null || true
+          
+          # Start container with dual video generation settings
+          # The container's startup script will automatically trigger the webhook
+          docker run -d \
+            --name ${{ env.CONTAINER_NAME }} \
+            -p 5678:5678 \
+            -e VIDEO_TYPE=${{ steps.settings.outputs.video_type }} \
+            -e ENABLE_MAIN_CREATION=${{ steps.settings.outputs.enable_main_creation }} \
+            -e ENABLE_MAIN_UPLOAD=${{ steps.settings.outputs.enable_main_upload }} \
+            -e ENABLE_NETFLIX_CREATION=${{ steps.settings.outputs.enable_netflix_creation }} \
+            -e ENABLE_NETFLIX_UPLOAD=${{ steps.settings.outputs.enable_netflix_upload }} \
+            -e ENABLE_SHORTS_UPLOAD=${{ steps.settings.outputs.enable_shorts }} \
+            -e TRIGGER_SOURCE=${{ steps.settings.outputs.trigger_source }} \
+            -e SCHEDULE_TYPE=github-actions-dual \
+            -e DAILY_DUAL_MODE=true \
+            -e AUTO_TRIGGER_WEBHOOK=true \
+            ${{ env.DOCKER_IMAGE }}
+          
+          echo "✅ Container started - webhook will be triggered automatically by startup script"
+      
+      - name: Wait for Container and Auto-Webhook Trigger
+        run: |
+          echo "⏳ Waiting for container startup and automatic webhook trigger..."
+          sleep 30
+          
+          # Check container status
+          if ! docker ps | grep -q ${{ env.CONTAINER_NAME }}; then
+            echo "❌ Container failed to start"
+            docker logs ${{ env.CONTAINER_NAME }}
+            exit 1
+          fi
+          
+          # Wait for webhook auto-trigger (increased timeout for auto-trigger + n8n startup)
+          for i in {1..60}; do
+            # Check if the startup script has triggered the webhook
+            webhook_triggered=$(docker exec ${{ env.CONTAINER_NAME }} sh -c '
+              # Look for webhook trigger indicators in logs
+              if [ -f "/app/startup.log" ]; then
+                grep -q "Webhook triggered successfully" /app/startup.log 2>/dev/null && echo "true" || echo "false"
+              else
+                # Fallback: check if n8n is responding and workflow might be running
+                curl -f -s http://localhost:5678/healthz >/dev/null 2>&1 && echo "unknown" || echo "false"
+              fi
+            ')
+            
+            case $webhook_triggered in
+              "true")
+                echo "✅ Webhook triggered automatically by startup script!"
+                break
+                ;;
+              "unknown")
+                echo "🔄 n8n is ready, webhook trigger status unknown (attempt $i/60)"
+                ;;
+              "false")
+                echo "⏳ Waiting for auto-webhook trigger (attempt $i/60)..."
+                ;;
+            esac
+            
+            sleep 5
+            
+            if [ $i -eq 60 ]; then
+              echo "⚠️ Could not confirm webhook trigger, but proceeding with monitoring"
+              echo "📝 Container logs:"
+              docker logs --tail 20 ${{ env.CONTAINER_NAME }}
+              # Don't exit - maybe webhook triggered but we can't detect it
+            fi
+          done
+      
+      - name: Verify Auto-Triggered Dual Generation Setup
+        run: |
+          echo "🔐 Verifying auto-triggered dual generation setup..."
+          docker exec ${{ env.CONTAINER_NAME }} sh -c '
+            echo "=== Container Environment ==="
+            echo "  VIDEO_TYPE: $VIDEO_TYPE"
+            echo "  ENABLE_MAIN_CREATION: $ENABLE_MAIN_CREATION"
+            echo "  ENABLE_MAIN_UPLOAD: $ENABLE_MAIN_UPLOAD"
+            echo "  ENABLE_NETFLIX_CREATION: $ENABLE_NETFLIX_CREATION"
+            echo "  ENABLE_NETFLIX_UPLOAD: $ENABLE_NETFLIX_UPLOAD"
+            echo "  ENABLE_SHORTS_UPLOAD: $ENABLE_SHORTS_UPLOAD"
+            echo "  DAILY_DUAL_MODE: $DAILY_DUAL_MODE"
+            echo "  AUTO_TRIGGER_WEBHOOK: $AUTO_TRIGGER_WEBHOOK"
+            echo "  TRIGGER_SOURCE: $TRIGGER_SOURCE"
+            
+            echo ""
+            echo "=== Expected Auto-Generated Output ==="
+            if [ "$ENABLE_MAIN_CREATION" = "true" ]; then
+              echo "  📹 Main biographical video + metadata + thumbnail"
+            fi
+            if [ "$ENABLE_NETFLIX_CREATION" = "true" ]; then
+              echo "  📱 Netflix-style habit short + metadata"
+            fi
+            
+            echo ""
+            echo "=== Startup Process Status ==="
+            if [ -f "/app/startup.log" ]; then
+              echo "  📜 Startup log exists"
+              tail -5 /app/startup.log 2>/dev/null || echo "  ⚠️ Could not read startup log"
+            else
+              echo "  ⚠️ No startup log found yet"
+            fi
+            
+            echo ""
+            echo "=== n8n Status ==="
+            curl -f -s http://localhost:5678/healthz >/dev/null 2>&1 && echo "  ✅ n8n is responsive" || echo "  ❌ n8n not responding"
+          '
+      
+      - name: Monitor Auto-Triggered Dual Video Generation
+        run: |
+          echo "📊 Monitoring auto-triggered dual video generation..."
+          echo "🤖 The container's startup script has automatically triggered the webhook"
+          
+          # Extended monitoring for dual generation (45 minutes)
+          timeout_minutes=45
+          check_interval=45
+          max_checks=$((timeout_minutes * 60 / check_interval))
+          
+          main_completed=false
+          netflix_completed=false
+          
+          for i in $(seq 1 $max_checks); do
+            echo ""
+            echo "🔍 Check $i/$max_checks ($(($i * $check_interval / 60)) min elapsed)"
+            
+            # Check current generation status
+            status_info=$(docker exec ${{ env.CONTAINER_NAME }} sh -c '
+              if [ -d "/app/target" ]; then
+                echo "=== Target folder contents ==="
+                ls -la /app/target/ 2>/dev/null || echo "Target folder empty"
+                
+                main_files=0
+                netflix_files=0
+                
+                # Count main video files
+                [ -f "/app/target/motivational_video.mp4" ] && main_files=$((main_files + 1))
+                [ -f "/app/target/metadata.json" ] && main_files=$((main_files + 1))
+                [ -f "/app/target/thumbnail.jpg" ] && main_files=$((main_files + 1))
+                
+                # Count Netflix files
+                [ -f "/app/target/netflix_short.mp4" ] && netflix_files=$((netflix_files + 1))
+                [ -f "/app/target/netflix_metadata.json" ] && netflix_files=$((netflix_files + 1))
+                
+                echo ""
+                echo "=== File Status ==="
+                echo "Main video files: $main_files/3 (video, metadata, thumbnail)"
+                echo "Netflix files: $netflix_files/2 (video, metadata)"
+                
+                # Determine completion status
+                main_complete="false"
+                netflix_complete="false"
+                
+                [ $main_files -ge 3 ] && main_complete="true"  # At least core files
+                [ $netflix_files -eq 2 ] && netflix_complete="true"
+                
+                echo "MAIN_COMPLETE:$main_complete"
+                echo "NETFLIX_COMPLETE:$netflix_complete"
+                
+                # Overall status
+                if [ "${{ steps.settings.outputs.video_type }}" = "both" ]; then
+                  if [ "$main_complete" = "true" ] && [ "$netflix_complete" = "true" ]; then
+                    echo "STATUS:COMPLETE"
+                  elif [ "$main_complete" = "true" ] || [ "$netflix_complete" = "true" ]; then
+                    echo "STATUS:PARTIAL"
+                  else
+                    echo "STATUS:IN_PROGRESS"
+                  fi
+                elif [ "${{ steps.settings.outputs.video_type }}" = "main" ]; then
+                  [ "$main_complete" = "true" ] && echo "STATUS:COMPLETE" || echo "STATUS:IN_PROGRESS"
+                elif [ "${{ steps.settings.outputs.video_type }}" = "netflix" ]; then
+                  [ "$netflix_complete" = "true" ] && echo "STATUS:COMPLETE" || echo "STATUS:IN_PROGRESS"
+                fi
+              else
+                echo "STATUS:STARTING"
+              fi
+            ')
+            
+            echo "$status_info"
+            
+            # Update completion flags
+            if echo "$status_info" | grep -q "MAIN_COMPLETE:true"; then
+              if [ "$main_completed" = "false" ]; then
+                echo "✅ Main video generation completed!"
+                main_completed=true
+              fi
+            fi
+            
+            if echo "$status_info" | grep -q "NETFLIX_COMPLETE:true"; then
+              if [ "$netflix_completed" = "false" ]; then
+                echo "✅ Netflix video generation completed!"
+                netflix_completed=true
+              fi
+            fi
+            
+            # Check for overall completion
+            if echo "$status_info" | grep -q "STATUS:COMPLETE"; then
+              echo ""
+              echo "🎉 All video generation completed successfully!"
+              break
+            fi
+            
+            # Show recent container logs
+            echo ""
+            echo "📝 Recent logs:"
+            docker logs --tail 8 ${{ env.CONTAINER_NAME }} 2>/dev/null | head -5
+            
+            sleep $check_interval
+            
+            if [ $i -eq $max_checks ]; then
+              echo ""
+              echo "⚠️ Video generation timed out after $timeout_minutes minutes"
+              echo "📋 Final status:"
+              echo "  Main video: $([ "$main_completed" = "true" ] && echo "✅ Complete" || echo "❌ Incomplete")"
+              echo "  Netflix video: $([ "$netflix_completed" = "true" ] && echo "✅ Complete" || echo "❌ Incomplete")"
+              echo ""
+              echo "📝 Full container logs:"
+              docker logs --tail 30 ${{ env.CONTAINER_NAME }}
+              exit 1
+            fi
+          done
+      
+      - name: Final Verification
+        run: |
+          echo "🔍 Final verification of all generated content..."
+          
+          docker exec ${{ env.CONTAINER_NAME }} sh -c '
+            cd /app/target 2>/dev/null || { echo "❌ Target folder not found"; exit 1; }
+            
+            echo "📁 All generated files:"
+            ls -lah
+            
+            echo ""
+            echo "📊 File details:"
+            
+            # Main video files
+            if [ -f "motivational_video.mp4" ]; then
+              size=$(stat -c%s "motivational_video.mp4" 2>/dev/null || stat -f%z "motivational_video.mp4")
+              echo "✅ Main video: $(($size / 1024 / 1024)) MB"
+            else
+              echo "❌ Main video: Missing"
+            fi
+            
+            if [ -f "thumbnail.jpg" ]; then
+              size=$(stat -c%s "thumbnail.jpg" 2>/dev/null || stat -f%z "thumbnail.jpg")
+              echo "✅ Thumbnail: $(($size / 1024)) KB"
+            else
+              echo "❌ Thumbnail: Missing"
+            fi
+            
+            # Netflix video files
+            if [ -f "netflix_short.mp4" ]; then
+              size=$(stat -c%s "netflix_short.mp4" 2>/dev/null || stat -f%z "netflix_short.mp4")
+              echo "✅ Netflix video: $(($size / 1024 / 1024)) MB"
+            else
+              echo "❌ Netflix video: Missing"
+            fi
+            
+            # Metadata files
+            if [ -f "metadata.json" ]; then
+              echo "✅ Main metadata: $(jq -r .youtube_title metadata.json 2>/dev/null || echo "Invalid JSON")"
+            else
+              echo "❌ Main metadata: Missing"
+            fi
+            
+            if [ -f "netflix_metadata.json" ]; then
+              echo "✅ Netflix metadata: $(jq -r .title netflix_metadata.json 2>/dev/null || echo "Invalid JSON")"
+            else
+              echo "❌ Netflix metadata: Missing"
+            fi
+            
+            echo ""
+            echo "🎯 Daily content summary:"
+            echo "  📺 Biographical content: $([ -f "motivational_video.mp4" ] && echo "✅ Ready" || echo "❌ Failed")"
+            echo "  📱 Netflix-style content: $([ -f "netflix_short.mp4" ] && echo "✅ Ready" || echo "❌ Failed")"
+          '
+      
+      - name: Cleanup Container
+        if: always()
+        run: |
+          echo "🧹 Final cleanup..."
+          echo "📝 Final container logs:"
+          docker logs --tail 15 ${{ env.CONTAINER_NAME }} 2>/dev/null || true
+          docker rm -f ${{ env.CONTAINER_NAME }} 2>/dev/null || true
+          echo "✅ Cleanup completed"
