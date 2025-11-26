@@ -145,6 +145,15 @@ jobs:
             -e DAILY_DUAL_MODE=true \
             -e AUTO_TRIGGER_WEBHOOK=true \
             -e AZURE_TABLE_CONNECTION_STRING='${{ secrets.AZURE_TABLE_CONNECTION_STRING }}' \
+            -e OPENAI_API_KEY='${{ secrets.OPENAI_API_KEY }}' \
+            -e SERPAPI_KEY='${{ secrets.SERPAPI_KEY }}' \
+            -e AMAZON_AFFILIATE_TAG='${{ secrets.AMAZON_AFFILIATE_TAG }}' \
+            -e AZURE_TTS_KEY='${{ secrets.AZURE_TTS_KEY }}' \
+            -e AZURE_TTS_REGION='${{ secrets.AZURE_TTS_REGION }}' \
+            -e AZURE_TTS_VOICE='${{ secrets.AZURE_TTS_VOICE }}' \
+            -e AZURE_STORAGE_ACCOUNT_NAME='${{ secrets.AZURE_STORAGE_ACCOUNT_NAME }}' \
+            -e AZURE_STORAGE_ACCOUNT_KEY='${{ secrets.AZURE_STORAGE_ACCOUNT_KEY }}' \
+            -e AZURE_STORAGE_CONTAINER_NAME='${{ secrets.AZURE_STORAGE_CONTAINER_NAME }}' \
             ${{ env.DOCKER_IMAGE }}
           
           echo "✅ Container started - webhook will be triggered automatically by startup script"
