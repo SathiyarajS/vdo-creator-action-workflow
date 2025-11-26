@@ -144,6 +144,7 @@ jobs:
             -e SCHEDULE_TYPE=github-actions-dual \
             -e DAILY_DUAL_MODE=true \
             -e AUTO_TRIGGER_WEBHOOK=true \
+            -e AZURE_TABLE_CONNECTION_STRING='${{ secrets.AZURE_TABLE_CONNECTION_STRING }}' \
             ${{ env.DOCKER_IMAGE }}
           
           echo "✅ Container started - webhook will be triggered automatically by startup script"
