@@ -158,9 +158,9 @@ jobs:
           
           echo "✅ Container started - webhook will be triggered automatically by startup script"
       
-      - name: Wait for Container and Auto-Webhook Trigger
+      - name: Wait for Container Startup
         run: |
-          echo "⏳ Waiting for container startup and automatic webhook trigger..."
+          echo "⏳ Waiting for container startup and n8n initialization..."
           sleep 30
           
           # Check container status
@@ -170,41 +170,10 @@ jobs:
             exit 1
           fi
           
-          # Wait for webhook auto-trigger (increased timeout for auto-trigger + n8n startup)
-          for i in {1..60}; do
-            # Check if the startup script has triggered the webhook
-            webhook_triggered=$(docker exec ${{ env.CONTAINER_NAME }} sh -c '
-              # Look for webhook trigger indicators in logs
-              if [ -f "/app/startup.log" ]; then
-                grep -q "Webhook triggered successfully" /app/startup.log 2>/dev/null && echo "true" || echo "false"
-              else
-                # Fallback: check if n8n is responding and workflow might be running
-                curl -f -s http://localhost:5678/healthz >/dev/null 2>&1 && echo "unknown" || echo "false"
-              fi
-            ')
-            
-            case $webhook_triggered in
-              "true")
-                echo "✅ Webhook triggered automatically by startup script!"
-                break
-                ;;
-              "unknown")
-                echo "🔄 n8n is ready, webhook trigger status unknown (attempt $i/60)"
-                ;;
-              "false")
-                echo "⏳ Waiting for auto-webhook trigger (attempt $i/60)..."
-                ;;
-            esac
-            
-            sleep 5
-            
-            if [ $i -eq 60 ]; then
-              echo "⚠️ Could not confirm webhook trigger, but proceeding with monitoring"
-              echo "📝 Container logs:"
-              docker logs --tail 20 ${{ env.CONTAINER_NAME }}
-              # Don't exit - maybe webhook triggered but we can't detect it
-            fi
-          done
+          echo "✅ Container is running"
+          echo ""
+          echo "📝 Startup logs:"
+          docker logs --tail 20 ${{ env.CONTAINER_NAME }} 2>/dev/null | grep -E "(n8n ready|Workflow|webhook)" || docker logs --tail 10 ${{ env.CONTAINER_NAME }}
       
       - name: Verify Auto-Triggered Dual Generation Setup
         run: |
