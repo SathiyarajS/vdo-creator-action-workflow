@@ -249,8 +249,8 @@ jobs:
           echo "📊 Monitoring auto-triggered dual video generation..."
           echo "🤖 The container's startup script has automatically triggered the webhook"
           
-          # Extended monitoring for dual generation (45 minutes)
-          timeout_minutes=45
+          # Extended monitoring for dual generation (75 minutes)
+          timeout_minutes=75
           check_interval=45
           max_checks=$((timeout_minutes * 60 / check_interval))
           
