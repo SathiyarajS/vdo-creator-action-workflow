@@ -140,6 +140,7 @@ jobs:
             -e ENABLE_NETFLIX_CREATION=${{ steps.settings.outputs.enable_netflix_creation }} \
             -e ENABLE_NETFLIX_UPLOAD=${{ steps.settings.outputs.enable_netflix_upload }} \
             -e ENABLE_SHORTS_UPLOAD=${{ steps.settings.outputs.enable_shorts }} \
+            -e ENABLE_TEASER_CREATION=${{ steps.settings.outputs.enable_shorts }} \
             -e TRIGGER_SOURCE=${{ steps.settings.outputs.trigger_source }} \
             -e SCHEDULE_TYPE=github-actions-dual \
             -e DAILY_DUAL_MODE=true \
