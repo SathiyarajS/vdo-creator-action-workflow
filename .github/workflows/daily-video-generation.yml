@@ -337,20 +337,26 @@ jobs:
               break
             fi
             
-            # Show recent container logs
+            # Show concise status
             echo ""
-            echo "📝 Recent container logs:"
-            docker logs --tail 15 ${{ env.CONTAINER_NAME }} 2>/dev/null
-            
-            # Check application log file
-            echo ""
-            echo "📝 Application log file:"
-            docker exec ${{ env.CONTAINER_NAME }} sh -c 'if [ -f /tmp/main_video_log.txt ]; then tail -20 /tmp/main_video_log.txt; else echo "Log file not found"; fi' 2>/dev/null || echo "Could not read log file"
-            
-            # Check n8n executions
-            echo ""
-            echo "📝 n8n workflow executions:"
-            docker exec ${{ env.CONTAINER_NAME }} sh -c 'curl -s http://localhost:5678/rest/executions 2>/dev/null | jq -r ".data[] | \"ID: \(.id) | Status: \(.status) | Started: \(.startedAt)\"" | head -3' 2>/dev/null || echo "Could not fetch executions"
+            echo "📊 Video Generation Progress:"
+            docker exec ${{ env.CONTAINER_NAME }} sh -c '
+              main_count=0
+              netflix_count=0
+              [ -f "/app/target/motivational_video.mp4" ] && main_count=$((main_count + 1))
+              [ -f "/app/target/metadata.json" ] && main_count=$((main_count + 1))
+              [ -f "/app/target/thumbnail.jpg" ] && main_count=$((main_count + 1))
+              [ -f "/app/target/netflix_short.mp4" ] && netflix_count=$((netflix_count + 1))
+              [ -f "/app/target/netflix_metadata.json" ] && netflix_count=$((netflix_count + 1))
+              
+              echo "  Main Video: $main_count/3 files"
+              echo "  Netflix Video: $netflix_count/2 files"
+              
+              if [ -f "/tmp/main_video_log.txt" ]; then
+                last_log=$(tail -1 /tmp/main_video_log.txt 2>/dev/null | grep -oP "(?<=- INFO - ).*" || echo "Processing...")
+                echo "  Status: $last_log"
+              fi
+            ' 2>/dev/null || echo "  Status: Starting..."
             
             sleep $check_interval
             
