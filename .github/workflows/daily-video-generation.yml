@@ -339,8 +339,18 @@ jobs:
             
             # Show recent container logs
             echo ""
-            echo "📝 Recent logs:"
-            docker logs --tail 8 ${{ env.CONTAINER_NAME }} 2>/dev/null | head -5
+            echo "📝 Recent container logs:"
+            docker logs --tail 15 ${{ env.CONTAINER_NAME }} 2>/dev/null
+            
+            # Check application log file
+            echo ""
+            echo "📝 Application log file:"
+            docker exec ${{ env.CONTAINER_NAME }} sh -c 'if [ -f /tmp/main_video_log.txt ]; then tail -20 /tmp/main_video_log.txt; else echo "Log file not found"; fi' 2>/dev/null || echo "Could not read log file"
+            
+            # Check n8n executions
+            echo ""
+            echo "📝 n8n workflow executions:"
+            docker exec ${{ env.CONTAINER_NAME }} sh -c 'curl -s http://localhost:5678/rest/executions 2>/dev/null | jq -r ".data[] | \"ID: \(.id) | Status: \(.status) | Started: \(.startedAt)\"" | head -3' 2>/dev/null || echo "Could not fetch executions"
             
             sleep $check_interval
             
