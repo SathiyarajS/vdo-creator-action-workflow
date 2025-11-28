@@ -22,6 +22,11 @@ on:
         required: false
         default: false
         type: boolean
+      enable_log_forwarding:
+        description: 'Enable enhanced log capture and artifacts'
+        required: false
+        default: true
+        type: boolean
 
 env:
   DOCKER_IMAGE: video-creator:latest
@@ -50,6 +55,7 @@ jobs:
             echo "enable_shorts=false" >> $GITHUB_OUTPUT
             echo "trigger_source=scheduled-daily-dual" >> $GITHUB_OUTPUT
             echo "video_type=both" >> $GITHUB_OUTPUT
+            echo "enable_log_forwarding=true" >> $GITHUB_OUTPUT
             
           elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             # Manual run - use inputs
@@ -78,6 +84,7 @@ jobs:
             esac
             echo "enable_shorts=${{ inputs.enable_shorts }}" >> $GITHUB_OUTPUT
             echo "trigger_source=manual" >> $GITHUB_OUTPUT
+            echo "enable_log_forwarding=${{ inputs.enable_log_forwarding }}" >> $GITHUB_OUTPUT
             
           else
             # Default - both videos
@@ -88,6 +95,7 @@ jobs:
             echo "enable_shorts=false" >> $GITHUB_OUTPUT
             echo "trigger_source=api" >> $GITHUB_OUTPUT
             echo "video_type=both" >> $GITHUB_OUTPUT
+            echo "enable_log_forwarding=true" >> $GITHUB_OUTPUT
           fi
       
       # CRITICAL: Login to GHCR with Personal Access Token
@@ -134,6 +142,10 @@ jobs:
           docker run -d \
             --name ${{ env.CONTAINER_NAME }} \
             -p 5678:5678 \
+            --log-driver json-file \
+            --log-opt max-size=10m \
+            --log-opt max-file=3 \
+            --log-opt labels=video-creator,workflow-run-${{ github.run_id }} \
             -e VIDEO_TYPE=${{ steps.settings.outputs.video_type }} \
             -e ENABLE_MAIN_CREATION=${{ steps.settings.outputs.enable_main_creation }} \
             -e ENABLE_MAIN_UPLOAD=${{ steps.settings.outputs.enable_main_upload }} \
@@ -159,6 +171,50 @@ jobs:
             ${{ env.DOCKER_IMAGE }}
           
           echo "✅ Container started - webhook will be triggered automatically by startup script"
+      
+      # Stream logs in real-time to GitHub Actions
+      - name: Stream Container Logs (Background)
+        if: steps.settings.outputs.enable_log_forwarding == 'true'
+        run: |
+          echo "📊 Starting log streaming..."
+          
+          # Stream logs to GitHub Actions output in background
+          docker logs -f ${{ env.CONTAINER_NAME }} 2>&1 | while IFS= read -r line; do
+            echo "[VIDEO-CREATOR] $line"
+          done &
+          
+          LOG_PID=$!
+          echo "LOG_PID=$LOG_PID" >> $GITHUB_ENV
+          echo "✅ Log streaming started (PID: $LOG_PID)"
+      
+      # Forward logs to BetterStack
+      - name: Forward Logs to BetterStack (Background)
+        if: steps.settings.outputs.enable_log_forwarding == 'true'
+        env:
+          BETTERSTACK_TOKEN: ${{ secrets.BETTERSTACK_SOURCE_TOKEN }}
+        run: |
+          echo "📤 Starting BetterStack log forwarding..."
+          
+          # Stream logs to BetterStack in background
+          docker logs -f ${{ env.CONTAINER_NAME }} 2>&1 | while IFS= read -r line; do
+            # Send each log line to BetterStack
+            curl -s -X POST "https://in.logs.betterstack.com" \
+              -H "Authorization: Bearer $BETTERSTACK_TOKEN" \
+              -H "Content-Type: application/json" \
+              -d "{
+                \"dt\": \"$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)\",
+                \"message\": \"$line\",
+                \"level\": \"info\",
+                \"container\": \"${{ env.CONTAINER_NAME }}\",
+                \"workflow_run\": \"${{ github.run_id }}\",
+                \"video_type\": \"${{ steps.settings.outputs.video_type }}\",
+                \"source\": \"github-actions\"
+              }" > /dev/null 2>&1
+          done &
+          
+          BETTERSTACK_PID=$!
+          echo "BETTERSTACK_PID=$BETTERSTACK_PID" >> $GITHUB_ENV
+          echo "✅ BetterStack forwarding started (PID: $BETTERSTACK_PID)"
       
       - name: Wait for Container Startup
         run: |
@@ -399,10 +455,44 @@ jobs:
             echo "  📱 Netflix-style content: $([ -f "netflix_short.mp4" ] && echo "✅ Ready" || echo "❌ Failed")"
           '
       
+      # Export logs as artifact
+      - name: Export Container Logs
+        if: always() && steps.settings.outputs.enable_log_forwarding == 'true'
+        run: |
+          echo "📦 Exporting container logs..."
+          mkdir -p logs
+          docker logs ${{ env.CONTAINER_NAME }} > logs/container-${{ github.run_id }}.log 2>&1 || true
+          
+          # Also export internal log files if they exist
+          docker cp ${{ env.CONTAINER_NAME }}:/tmp/main_video_log.txt logs/main_video.log 2>/dev/null || echo "No main video log"
+          docker cp ${{ env.CONTAINER_NAME }}:/tmp/netflix_video_log.txt logs/netflix_video.log 2>/dev/null || echo "No netflix video log"
+          
+          echo "✅ Logs exported to logs/ directory"
+      
+      # Upload logs as GitHub Actions artifact
+      - name: Upload Logs as Artifact
+        if: always() && steps.settings.outputs.enable_log_forwarding == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: video-generation-logs-${{ github.run_id }}
+          path: logs/
+          retention-days: 7
+      
       - name: Cleanup Container
         if: always()
         run: |
           echo "🧹 Final cleanup..."
+          
+          # Stop log streaming if running
+          if [ -n "$LOG_PID" ]; then
+            kill $LOG_PID 2>/dev/null || true
+          fi
+          
+          # Stop BetterStack forwarding if running
+          if [ -n "$BETTERSTACK_PID" ]; then
+            kill $BETTERSTACK_PID 2>/dev/null || true
+          fi
+          
           echo "📝 Final container logs:"
           docker logs --tail 15 ${{ env.CONTAINER_NAME }} 2>/dev/null || true
           docker rm -f ${{ env.CONTAINER_NAME }} 2>/dev/null || true
