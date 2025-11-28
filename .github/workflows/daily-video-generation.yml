@@ -195,26 +195,41 @@ jobs:
         run: |
           echo "📤 Starting BetterStack log forwarding..."
           
-          # Stream logs to BetterStack in background
-          docker logs -f ${{ env.CONTAINER_NAME }} 2>&1 | while IFS= read -r line; do
-            # Send each log line to BetterStack
-            curl -s -X POST "https://in.logs.betterstack.com" \
-              -H "Authorization: Bearer $BETTERSTACK_TOKEN" \
+          # Create a script to forward logs to BetterStack
+          cat > /tmp/forward_to_betterstack.sh << 'SCRIPT'
+          #!/bin/bash
+          CONTAINER_NAME="$1"
+          TOKEN="$2"
+          WORKFLOW_RUN="$3"
+          VIDEO_TYPE="$4"
+          
+          # Stream logs and send to BetterStack
+          docker logs -f "$CONTAINER_NAME" 2>&1 | while IFS= read -r line; do
+            # Escape quotes in the log message
+            escaped_line=$(echo "$line" | sed 's/"/\\"/g' | sed "s/'/\\'/g")
+            
+            # Send to BetterStack using their HTTP source format
+            curl -X POST "https://in.logs.betterstack.com" \
+              -H "Authorization: Bearer $TOKEN" \
               -H "Content-Type: application/json" \
-              -d "{
-                \"dt\": \"$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)\",
-                \"message\": \"$line\",
-                \"level\": \"info\",
-                \"container\": \"${{ env.CONTAINER_NAME }}\",
-                \"workflow_run\": \"${{ github.run_id }}\",
-                \"video_type\": \"${{ steps.settings.outputs.video_type }}\",
-                \"source\": \"github-actions\"
-              }" > /dev/null 2>&1
-          done &
+              -d "{\"dt\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"message\":\"$escaped_line\",\"container\":\"$CONTAINER_NAME\",\"workflow_run\":\"$WORKFLOW_RUN\",\"video_type\":\"$VIDEO_TYPE\"}" \
+              2>&1 | grep -v "curl" || true
+            
+            # Small delay to avoid overwhelming the API
+            sleep 0.1
+          done
+          SCRIPT
+          
+          chmod +x /tmp/forward_to_betterstack.sh
+          
+          # Run in background
+          /tmp/forward_to_betterstack.sh "${{ env.CONTAINER_NAME }}" "$BETTERSTACK_TOKEN" "${{ github.run_id }}" "${{ steps.settings.outputs.video_type }}" &
           
           BETTERSTACK_PID=$!
           echo "BETTERSTACK_PID=$BETTERSTACK_PID" >> $GITHUB_ENV
           echo "✅ BetterStack forwarding started (PID: $BETTERSTACK_PID)"
+          echo "🔍 Check your BetterStack dashboard in 1-2 minutes for logs"
+      
       
       - name: Wait for Container Startup
         run: |
