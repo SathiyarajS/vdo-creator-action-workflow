@@ -1,9 +1,9 @@
 name: Video Generator - Daily Dual Content (Public Repo + Private Image)
 
 on:
-  # Daily dual content generation
-  schedule:
-    - cron: '0 10 * * *'    # Daily at 3:30 PM IST (10:00 AM UTC) - Videos ready by 5-6 AM EST
+  # Daily dual content generation (DISABLED - Completing implementation plan)
+  # schedule:
+  #   - cron: '0 10 * * *'    # Daily at 3:30 PM IST (10:00 AM UTC) - Videos ready by 5-6 AM EST
   
   # Manual trigger with options
   workflow_dispatch:
