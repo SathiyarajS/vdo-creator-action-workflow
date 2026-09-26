@@ -26,6 +26,11 @@ on:
         required: false
         type: string
         default: 'main'
+      tests_only:
+        description: 'Only check out, install and run the tests (no paid calls)'
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -74,6 +79,7 @@ jobs:
         run: python -m unittest discover -s tests
 
       - name: Run the video pipeline and upload to Azure
+        if: ${{ !inputs.tests_only }}
         # Below the job limit, so the alert step still runs after a timeout.
         timeout-minutes: 110
         env:

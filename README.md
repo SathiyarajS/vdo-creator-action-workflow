@@ -20,7 +20,8 @@ run summary.
 
 - **Schedule:** Saturday 09:00 IST (03:30 UTC).
 - **Manual:** Actions → *Weekly video* → *Run workflow*. Inputs: build the Short,
-  an optional subject name, and which `video-creator` branch, tag or commit to run.
+  an optional subject name, which `video-creator` branch, tag or commit to run, and
+  **tests only** (check out, install and test, with no paid calls).
 
 ## Settings
 
