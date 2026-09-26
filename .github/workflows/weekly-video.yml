@@ -129,8 +129,9 @@ jobs:
           mkdir -p /tmp/video-output
           python3 -m code.main
 
+      # Only a real video run alerts; a tests-only check reports in GitHub alone.
       - name: Alert on a failure the run could not report itself
-        if: failure() || cancelled()
+        if: (failure() || cancelled()) && !inputs.tests_only
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
