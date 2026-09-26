@@ -87,7 +87,7 @@ jobs:
           TARGET_FOLDER: /tmp/video-output
           BUILD_TEASER_SHORT: ${{ inputs.build_teaser_short != false && 'true' || 'false' }}
           PERSON_OVERRIDE: ${{ inputs.person_override }}
-          YOUTUBE_RETENTION_DAYS: '30'
+          YOUTUBE_RETENTION_DAYS: '14'
           # Secrets: credentials and personal details.
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           POLLINATIONS_API_KEY: ${{ secrets.POLLINATIONS_API_KEY }}
