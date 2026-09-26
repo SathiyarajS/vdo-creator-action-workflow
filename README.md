@@ -23,6 +23,10 @@ run summary.
   an optional subject name, which `video-creator` branch, tag or commit to run, and
   **tests only** (check out, install and test, with no paid calls).
 
+**Keeping the schedule alive:** GitHub disables scheduled workflows in a public repository
+after 60 days without activity. On Saturdays a small `keepalive` job makes one empty commit
+whenever this repository has been quiet for 45 days.
+
 ## Settings
 
 **Secrets** (credentials and personal details):

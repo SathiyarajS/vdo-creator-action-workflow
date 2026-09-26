@@ -138,3 +138,29 @@ jobs:
             python3 -m code.notify "weekly workflow" \
               "The run failed or timed out before it could report. Log: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           fi
+
+  # GitHub disables scheduled workflows in a public repository after 60 days
+  # without repository activity, and this repository rarely changes. A quiet
+  # 45 days earns one empty commit, which keeps the Saturday schedule alive.
+  # Commits made with GITHUB_TOKEN never trigger workflows, so this cannot loop.
+  keepalive:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - name: Check out this repository
+        uses: actions/checkout@v4
+
+      - name: Commit if the repository has been quiet for 45 days
+        run: |
+          last=$(git log -1 --format=%ct)
+          quiet_days=$(( ( $(date +%s) - last ) / 86400 ))
+          echo "Days since the last commit: $quiet_days"
+          if [ "$quiet_days" -ge 45 ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit --allow-empty -m "Keep the weekly schedule active"
+            git push
+          fi
