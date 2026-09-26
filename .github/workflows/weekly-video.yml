@@ -102,6 +102,7 @@ jobs:
           SMTP_USER: ${{ secrets.SMTP_USER }}
           SMTP_APP_PASSWORD: ${{ secrets.SMTP_APP_PASSWORD }}
           EMAIL_TO: ${{ secrets.EMAIL_TO }}
+          SERPAPI_KEY: ${{ secrets.SERPAPI_KEY }}
           # Variables: settings that are not secret. An unset one falls back
           # to the code default.
           AZURE_STORAGE_ALLOW_PUBLIC: ${{ vars.AZURE_STORAGE_ALLOW_PUBLIC }}
@@ -121,6 +122,7 @@ jobs:
           POLLINATIONS_MODEL: ${{ vars.POLLINATIONS_MODEL }}
           POLLINATIONS_REFERENCE_MODEL: ${{ vars.POLLINATIONS_REFERENCE_MODEL }}
           IMAGE_WORKERS: ${{ vars.IMAGE_WORKERS }}
+          AMAZON_AFFILIATE_TAG: ${{ vars.AMAZON_AFFILIATE_TAG }}
         run: |
           mkdir -p /tmp/video-output
           python3 -m code.main
