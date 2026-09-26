@@ -41,7 +41,8 @@ model choices (`SCRIPT_MODEL`, `UTILITY_MODEL`, `LEDGER_MODEL`, `ARC_MODEL`,
 `OPENAI_IMAGE_MODEL`, `OPENAI_IMAGE_QUALITY`, `IMAGE_FALLBACK_MODELS`,
 `THUMBNAIL_FALLBACK_MODELS`, `POLLINATIONS_MODEL`, `POLLINATIONS_REFERENCE_MODEL`,
 `IMAGE_WORKERS`), `AMAZON_AFFILIATE_TAG` (your Associates tag for book links), voice (`AZURE_TTS_REGION`, `AZURE_TTS_VOICE`) and
-`AZURE_STORAGE_ALLOW_PUBLIC`.
+`AZURE_STORAGE_ALLOW_PUBLIC`, and the voice: `VOICE_BASS` (low-end weight, default 1.6)
+and `VOICE_GRAVEL` (rasp, default 0.12); 1.0 and 0 give the plain voice chain.
 
 ## Rotating the deploy key
 

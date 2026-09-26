@@ -123,6 +123,8 @@ jobs:
           POLLINATIONS_REFERENCE_MODEL: ${{ vars.POLLINATIONS_REFERENCE_MODEL }}
           IMAGE_WORKERS: ${{ vars.IMAGE_WORKERS }}
           AMAZON_AFFILIATE_TAG: ${{ vars.AMAZON_AFFILIATE_TAG }}
+          VOICE_BASS: ${{ vars.VOICE_BASS }}
+          VOICE_GRAVEL: ${{ vars.VOICE_GRAVEL }}
         run: |
           mkdir -p /tmp/video-output
           python3 -m code.main
