@@ -103,9 +103,14 @@ jobs:
           SMTP_APP_PASSWORD: ${{ secrets.SMTP_APP_PASSWORD }}
           EMAIL_TO: ${{ secrets.EMAIL_TO }}
           SERPAPI_KEY: ${{ secrets.SERPAPI_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           # Variables: settings that are not secret. An unset one falls back
           # to the code default.
           AZURE_STORAGE_ALLOW_PUBLIC: ${{ vars.AZURE_STORAGE_ALLOW_PUBLIC }}
+          # Narration pipeline: v2 with Sonnet for the story pick and the narration.
+          PIPELINE: ${{ vars.PIPELINE }}
+          STORY_MODEL: ${{ vars.STORY_MODEL }}
+          WRITER_MODEL: ${{ vars.WRITER_MODEL }}
           AZURE_TTS_REGION: ${{ vars.AZURE_TTS_REGION }}
           AZURE_TTS_VOICE: ${{ vars.AZURE_TTS_VOICE }}
           SCRIPT_MODEL: ${{ vars.SCRIPT_MODEL }}
