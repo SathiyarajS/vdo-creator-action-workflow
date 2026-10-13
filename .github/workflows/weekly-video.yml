@@ -111,6 +111,12 @@ jobs:
           PIPELINE: ${{ vars.PIPELINE }}
           STORY_MODEL: ${{ vars.STORY_MODEL }}
           WRITER_MODEL: ${{ vars.WRITER_MODEL }}
+          # Motion layer (v2): animations, the archive pulse and meaning highlights.
+          # Each stays at its code default when the variable is unset; set
+          # ANIMATIONS=off to keep animations out of the weekly video.
+          ANIMATIONS: ${{ vars.ANIMATIONS }}
+          ARCHIVE_PULSE: ${{ vars.ARCHIVE_PULSE }}
+          ARCHIVE_MEANING: ${{ vars.ARCHIVE_MEANING }}
           AZURE_TTS_REGION: ${{ vars.AZURE_TTS_REGION }}
           AZURE_TTS_VOICE: ${{ vars.AZURE_TTS_VOICE }}
           SCRIPT_MODEL: ${{ vars.SCRIPT_MODEL }}
