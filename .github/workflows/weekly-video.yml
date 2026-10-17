@@ -31,6 +31,11 @@ on:
         required: false
         type: boolean
         default: false
+      script_only:
+        description: 'Debug: write the script only (text models, ~$0.15, no images, voice or upload)'
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -136,9 +141,16 @@ jobs:
           AMAZON_AFFILIATE_TAG: ${{ vars.AMAZON_AFFILIATE_TAG }}
           VOICE_BASS: ${{ vars.VOICE_BASS }}
           VOICE_GRAVEL: ${{ vars.VOICE_GRAVEL }}
+        # script_only: the text stages alone (code/scripttest.py) -- the full
+        # narration, words per scene against target, every re-ask reason and the
+        # cost per stage -- with no images, voice, upload or Used-table write.
         run: |
           mkdir -p /tmp/video-output
-          python3 -m code.main
+          if [ "${{ inputs.script_only }}" = "true" ]; then
+            python3 -m code.scripttest --pipeline v2 --narration-only ${PERSON_OVERRIDE:+--name "$PERSON_OVERRIDE"}
+          else
+            python3 -m code.main
+          fi
 
       # Only a real video run alerts; a tests-only check reports in GitHub alone.
       - name: Alert on a failure the run could not report itself
