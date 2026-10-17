@@ -147,7 +147,16 @@ jobs:
         run: |
           mkdir -p /tmp/video-output
           if [ "${{ inputs.script_only }}" = "true" ]; then
-            python3 -m code.scripttest --pipeline v2 --narration-only ${PERSON_OVERRIDE:+--name "$PERSON_OVERRIDE"}
+            set +e
+            python3 -m code.scripttest --pipeline v2 --narration-only ${PERSON_OVERRIDE:+--name "$PERSON_OVERRIDE"} 2>&1 | tee /tmp/video-output/scripttest.log
+            status=${PIPESTATUS[0]}
+            # The same output as a run annotation, readable through the GitHub API
+            # where the log download is not (60 KB, newest lines kept).
+            python3 - <<'PY'
+          text = open('/tmp/video-output/scripttest.log', encoding='utf-8', errors='replace').read()[-60000:]
+          print('::notice title=scripttest::' + text.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'))
+          PY
+            exit $status
           else
             python3 -m code.main
           fi
