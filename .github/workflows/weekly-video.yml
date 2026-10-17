@@ -151,10 +151,23 @@ jobs:
             python3 -m code.scripttest --pipeline v2 --narration-only ${PERSON_OVERRIDE:+--name "$PERSON_OVERRIDE"} 2>&1 | tee /tmp/video-output/scripttest.log
             status=${PIPESTATUS[0]}
             # The same output as a run annotation, readable through the GitHub API
-            # where the log download is not (60 KB, newest lines kept).
+            # where the log download is not (in 4 KB parts, newest kept).
             python3 - <<'PY'
-          text = open('/tmp/video-output/scripttest.log', encoding='utf-8', errors='replace').read()[-60000:]
-          print('::notice title=scripttest::' + text.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'))
+          # GitHub keeps about 4 KB of each annotation and ten notices a step:
+          # the newest ~38 KB, in order, as scripttest 1/N ... N/N.
+          esc = lambda t: t.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+          lines = [l for l in open('/tmp/video-output/scripttest.log', encoding='utf-8',
+                                   errors='replace').read().splitlines()
+                   if 'HTTP Request:' not in l]
+          chunks, cur = [], ''
+          for line in lines:
+              if len(cur) + len(line) + 1 > 3800:
+                  chunks.append(cur)
+                  cur = ''
+              cur += line[:3800] + '\n'
+          chunks = (chunks + [cur])[-10:]
+          for n, chunk in enumerate(chunks, 1):
+              print(f'::notice title=scripttest {n}/{len(chunks)}::' + esc(chunk))
           PY
             exit $status
           else
